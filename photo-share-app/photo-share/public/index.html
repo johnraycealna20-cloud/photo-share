@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Photo Share</title>
+    <style>
+        :root {
+            --primary: #4f46e5;
+            --bg: #f3f4f6;
+            --card-bg: #ffffff;
+            --text: #1f2937;
+            --header-bg: #e0e7ff;
+            --header-text: #3730a3;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg);
+            color: var(--text);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        h1 { font-size: 2rem; margin-bottom: 10px; }
+        p { color: #6b7280; }
+
+        .upload-container {
+            background: var(--card-bg);
+            padding: 40px;
+            border-radius: 16px;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+            text-align: center;
+            width: 100%;
+            max-width: 500px;
+            border: 2px dashed #d1d5db;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            margin-bottom: 30px;
+        }
+
+        .upload-container:hover { border-color: var(--primary); background-color: #eef2ff; }
+        .upload-icon { font-size: 40px; margin-bottom: 15px; display: block; }
+        input[type="file"] { display: none; }
+
+        .btn {
+            background-color: var(--primary);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-weight: 600;
+            display: inline-block;
+            margin-top: 15px;
+            cursor: pointer;
+            border: none;
+        }
+
+        .btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+        .status-msg {
+            margin-top: 10px;
+            font-size: 0.9rem;
+            min-height: 20px;
+            color: var(--primary);
+            font-weight: 500;
+        }
+
+        .gallery {
+            display: flex;
+            flex-direction: column;
+            width: 100%;
+            max-width: 800px;
+            gap: 20px;
+        }
+
+        .group-header {
+            background-color: var(--header-bg);
+            color: var(--header-text);
+            padding: 10px 15px;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 0.9rem;
+            align-self: flex-start;
+            margin-bottom: 10px;
+            border-left: 4px solid var(--primary);
+        }
+
+        .photos-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 12px;
+        }
+
+        .photo-card {
+            background: var(--card-bg);
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            position: relative;
+            aspect-ratio: 1;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+
+        .photo-card img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .delete-btn {
+            position: absolute;
+            top: 6px;
+            right: 6px;
+            background: rgba(220, 38, 38, 0.85);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 28px;
+            height: 28px;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+            transition: background 0.2s;
+        }
+
+        .delete-btn:hover { background: rgba(220, 38, 38, 1); }
+
+        .empty-state {
+            text-align: center;
+            color: #9ca3af;
+            padding: 40px;
+        }
+
+        .loading {
+            text-align: center;
+            color: #9ca3af;
+            padding: 20px;
+        }
+
+        @media (max-width: 600px) {
+            .upload-container { padding: 20px; }
+            h1 { font-size: 1.5rem; }
+            .photos-row { grid-template-columns: repeat(2, 1fr); }
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>📸 Photo Share</h1>
+        <p>Photos are saved and grouped by upload time</p>
+    </header>
+
+    <div class="upload-container" onclick="document.getElementById('fileInput').click()">
+        <span class="upload-icon">📁</span>
+        <h3>Click to Upload</h3>
+        <p>Select photos from your device</p>
+        <input type="file" id="fileInput" multiple accept="image/*">
+        <div class="btn" id="uploadBtn">Choose Files</div>
+        <p class="status-msg" id="statusMsg"></p>
+    </div>
+
+    <div class="gallery" id="gallery">
+        <div class="loading" id="loadingMsg">Loading photos...</div>
+    </div>
+
+    <script>
+        const fileInput   = document.getElementById('fileInput');
+        const gallery     = document.getElementById('gallery');
+        const statusMsg   = document.getElementById('statusMsg');
+        const uploadBtn   = document.getElementById('uploadBtn');
+        const loadingMsg  = document.getElementById('loadingMsg');
+
+        // ── Load photos from backend on page load ──────────────────────────
+        async function loadPhotos() {
+            try {
+                const res = await fetch('/api/photos');
+                const photos = await res.json();
+                renderGallery(photos);
+            } catch (err) {
+                loadingMsg.textContent = 'Failed to load photos. Is the server running?';
+            }
+        }
+
+        // ── Upload handler ─────────────────────────────────────────────────
+        fileInput.addEventListener('change', async function(e) {
+            const files = Array.from(e.target.files).filter(f => f.type.startsWith('image/'));
+            if (files.length === 0) return;
+
+            const formData = new FormData();
+            files.forEach(file => formData.append('photos', file));
+
+            uploadBtn.textContent = 'Uploading...';
+            uploadBtn.disabled = true;
+            statusMsg.textContent = `Uploading ${files.length} photo(s)...`;
+
+            try {
+                const res = await fetch('/api/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!res.ok) {
+                    const err = await res.json();
+                    throw new Error(err.error || 'Upload failed');
+                }
+
+                const data = await res.json();
+                statusMsg.textContent = `✅ ${data.uploaded} photo(s) uploaded!`;
+                await loadPhotos(); // Refresh gallery
+            } catch (err) {
+                statusMsg.textContent = `❌ ${err.message}`;
+            } finally {
+                uploadBtn.textContent = 'Choose Files';
+                uploadBtn.disabled = false;
+                fileInput.value = '';
+                setTimeout(() => statusMsg.textContent = '', 3000);
+            }
+        });
+
+        // ── Delete a photo ─────────────────────────────────────────────────
+        async function deletePhoto(id) {
+            if (!confirm('Delete this photo?')) return;
+            try {
+                const res = await fetch(`/api/photos/${id}`, { method: 'DELETE' });
+                if (!res.ok) throw new Error('Delete failed');
+                await loadPhotos();
+            } catch (err) {
+                alert('Could not delete photo: ' + err.message);
+            }
+        }
+
+        // ── Render gallery grouped by time ─────────────────────────────────
+        function renderGallery(photos) {
+            gallery.innerHTML = '';
+
+            if (!photos || photos.length === 0) {
+                gallery.innerHTML = '<div class="empty-state">📷 No photos yet. Upload some above!</div>';
+                return;
+            }
+
+            let lastGroupKey = null;
+            let currentRow  = null;
+
+            photos.forEach(photo => {
+                const dateObj     = new Date(photo.timestamp);
+                const timeString  = dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                const dateString  = dateObj.toLocaleDateString([], { year: 'numeric', month: 'long', day: 'numeric' });
+                const groupKey    = `${dateString} at ${timeString}`;
+
+                if (groupKey !== lastGroupKey) {
+                    // Group wrapper
+                    const groupDiv = document.createElement('div');
+
+                    const header = document.createElement('div');
+                    header.className = 'group-header';
+                    header.textContent = `📅 Shared on ${groupKey}`;
+                    groupDiv.appendChild(header);
+
+                    currentRow = document.createElement('div');
+                    currentRow.className = 'photos-row';
+                    groupDiv.appendChild(currentRow);
+
+                    gallery.appendChild(groupDiv);
+                    lastGroupKey = groupKey;
+                }
+
+                // Photo card
+                const card = document.createElement('div');
+                card.className = 'photo-card';
+                card.innerHTML = `
+                    <img src="${photo.src}" alt="${photo.originalName || 'Photo'}" loading="lazy">
+                    <button class="delete-btn" title="Delete photo">×</button>
+                `;
+                card.querySelector('.delete-btn').addEventListener('click', () => deletePhoto(photo.id));
+                currentRow.appendChild(card);
+            });
+        }
+
+        // ── Init ───────────────────────────────────────────────────────────
+        loadPhotos();
+    </script>
+
+</body>
+</html>
